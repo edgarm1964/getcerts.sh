@@ -101,14 +101,14 @@ Your web server has to be configured to provide a challenge directory for each
 and every website for which a certificate will be requested.
 - etc/openssl.conf<br/>
 In this file, at least the \*\_default items have to be adjusted:<br/>
- - `emailAddress_default        = cert@example.com`
- - `0.organizationName_default  = Example Organisation`
- - `localityName_default        = City`
- - `stateOrProvinceName_default = Province/state`
- - `countryName_default         = XX`<br/><br/>
+  - `emailAddress_default        = cert@example.com`
+  - `0.organizationName_default  = Example Organisation`
+  - `localityName_default        = City`
+  - `stateOrProvinceName_default = Province/state`
+  - `countryName_default         = XX`<br/><br/>
 
- Please leave `commonName_default` as is as it references a variable, using
- `${ENV::CN}`, which will be set by `getcerts.sh`.
+  Please leave `commonName_default` as is as it references a variable, using
+  `${ENV::CN}`, which will be set by `getcerts.sh`.
 
 #### Previous Let's Encrypt account keys
 
