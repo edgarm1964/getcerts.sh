@@ -11,18 +11,55 @@
 ## @changelog	converted from certbot to acme-tiny
 ##
 ## @globalstart
+## @global{FORCE,-,force the creation of a new certificate if unequal to 0}
 ## @global{HOMEDIR,-,the location where getcert.sh is installed}
+## @global(MINDAYSLEFT,-,a new certificate is requested if current certificate has less than this number of days validity left}
 ## @global{PROGNAME,-,the name of the script}
 ## @global{USESTAGING,-,1 if Let's Encrypt's staging directory should be used\, 0 otherwise}
 ## @global{VERBOSE,-,be more verbose}
 ## @global{VERSION,-,version}
 ## @globalend
+##
+## @exitcodestart
+## @exitcode{1,option --${OPTARG} needs an argument (file: bin/getcerts.sh\, line: 321\, 337\, 357)}
+## @exitcode{1,option --${_opt} needs an argument (file: bin/getcerts.sh\, line: 317\, 328\, 353)}
+## @exitcode{10,${CONFIGDIR}/domain.txt doesn't exist (file: lib/misc.sh\, line: 43)}
+## @exitcode{11,please create ${CONFIGDIR}/domain.txt (file: lib/misc.sh\, line: 88)}
+## @exitcode{12,${CONFIGDIR}/${DOMAIN}-san.txt doesn't exist (file: lib/misc.sh\, line: 110)}
+## @exitcode{13,key creation failed (file: lib/csr.sh\, line: 27)}
+## @exitcode{14,no subject alternative names defined (file: lib/csr.sh\, line: 58)}
+## @exitcode{15,${CERTDIR}/${DOMAIN}.csr doesn't exist (file: lib/csr.sh\, line: 90)}
+## @exitcode{16,${CERTDIR}/${DOMAIN}.csr couldn't be listed (file: lib/csr.sh\, line: 95)}
+## @exitcode{17,${CERTDIR}/${DOMAIN}.csr couldn't be listed (file: lib/csr.sh\, line: 101)}
+## @exitcode{18,${CERTDIR}/${DOMAIN}.csr doesn't exist (file: lib/csr.sh\, line: 126)}
+## @exitcode{19,${CERTDIR}/${DOMAIN}.csr couldn't be verified (file: lib/csr.sh\, line: 132)}
+## @exitcode{20,current top level domain certificate has ${daysLeft} days validity left\, not requesting a new certificate (file: lib/certificate.sh\, line: 45)}
+## @exitcode{21,couldn't create ${DOMAIN} certificate (file: lib/certificate.sh\, line: 88)}
+## @exitcode{22,could create Let's Encrypt cross signed certificate (file: lib/certificate.sh\, line: 91)}
+## @exitcode{23,${CERTDIR}/${DOMAIN}.crt doesn't exist (file: lib/certificate.sh\, line: 118)}
+## @exitcode{24,${CERTDIR}/${DOMAIN}.crt couldn't be listed (file: lib/certificate.sh\, line: 123)}
+## @exitcode{25,${CERTDIR}/${DOMAIN}.crt couldn't be listed (file: lib/certificate.sh\, line: 134)}
+## @exitcode{26,${certfile} doesn't exist (file: lib/certificate.sh\, line: 168)}
+## @exitcode{27,${certfile} couldn't be listed (file: lib/certificate.sh\, line: 173)}
+## @exitcode{28,${certfile} couldn't be listed (file: lib/certificate.sh\, line: 185)}
+## @exitcode{29,certificate ${DOMAIN}.crt doesn't exit (file: lib/certificate.sh\, line: 213)}
+## @exitcode{30,configuration verification was unsuccessful\, run ${PROGNAME} -C|--config for more information (file: bin/getcerts.sh\, line: 84)}
+## @exitcode{30,couldn't save current ${DOMAIN} certificate (file: lib/certificate.sh\, line: 217)}
+## @exitcode{31,couldn't remove current Subject Alternative Name certificate ${certfile}.crt (file: lib/certificate.sh\, line: 225)}
+## @exitcode{32,couldn't create ${DOMAIN} certificate (file: lib/certificate.sh\, line: 230)}
+## @exitcode{33,couldn't create Subject Alternative Name certificate ${certfile}.crt (file: lib/certificate.sh\, line: 235)}
+## @exitcode{34,couldn't restart httpd (file: lib/certificate.sh\, line: 239)}
+## @exitcodeend
+##
+#
 
 PROGNAME=${0##*/}
 VERBOSE=0
 USESTAGING=0
 HOMEDIR='/home/acme'
 VERSION="2.0"
+MINDAYSLEFT=30
+FORCE=0
 
 ##
 ## @fn init(number doConfigVerify, string acmehome)
@@ -191,7 +228,7 @@ function usage
 			# always show usage...
 			echo -e "${PROGNAME}: usage: ${PROGNAME} [-h|-u]"
 			echo -e "or: ${PROGNAME} [-C]"
-			[[ ${MYID} -ne 0 ]] && echo -e "or: ${PROGNAME} [-D <tld>] [-H <home>] [-S] [-v] -L|-V|-a|-c|-d|-g|-i|-k|-l|-s]"
+			[[ ${MYID} -ne 0 ]] && echo -e "or: ${PROGNAME} [-D <tld>] [-F] [-H <home>] [-I] [-m <days>] [-S] [-v] -L|-V|-a|-c|-d|-f|-g|-i|-k|-l|-s]"
 			[[ ${MYID} -eq 0 ]] && echo -e "or: ${PROGNAME} [-H <home>] [-i] [-v]"
 			if [[ ${exitcode} -eq 2 ]]; then
 				#
@@ -202,15 +239,18 @@ function usage
 					#
 					# non-root user...
 					echo -e "\t-D,--domain <tld>\t\t- top level domain to use, default: ${DOMAIN}"
+					echo -e "\t-F,--force\t\t\t- force the request of a new certificate"
 				fi
 					echo -e "\t-H,--home <home>\t\t- home to use, default: ${HOMEDIR}"
 				if [[ ${MYID} -ne 0 ]]; then
+					echo -e "\t-I,--info\t\t\t- show informatiopn about installed certificates"
 					echo -e "\t-L,--list-csr\t\t\t- list certificate signing request"
 					echo -e "\t-S,--staging\t\t\t- use Let's Encrypt staging directory"
 					echo -e "\t-V,--verify-csr\t\t\t- verify the certificate signing request"
 					echo -e "\t-a,--auto-generate\t\t- automagically create a new CSR and request new certificate"
 					echo -e "\t-c,--create-csr\t\t\t- create new certificate signing request"
 					echo -e "\t-d,--list-domains\t\t- list domains"
+					echo -e "\t-f,--force\t\t\t- force the request of a new certificate"
 					echo -e "\t-g,--get-certificates\t\t- get new certificates"
 				fi
 				echo -e "\t-h,--help\t\t\t- show this information"
@@ -220,6 +260,7 @@ function usage
 					# non-root user...
 					echo -e "\t-k,--create-key\t\t\t- create a domain key"
 					echo -e "\t-l,--list-certificates\t\t- list current certificates (default)"
+					echo -e "\t-m,--min-days-left <days>\t- get a new certificate if validity current one has less than <days> left, default: ${MINDAYSLEFT}"
 					echo -e "\t-s,--list-sans\t\t\t- list subject alternative names"
 				fi
 				echo -e "\t-u,--usage\t\t\t- show some brief usage information"
@@ -297,7 +338,7 @@ SINGLEDOMAIN=''
 
 #
 # process arguments
-while getopts ":CD:H:LSVacdghiklsuv-:" optchar; do
+while getopts ":CD:FH:ILSVacdghiklm:suv-:" optchar; do
 	case "${optchar}" in
 		-)	case "${OPTARG}" in
 				auto-g*)	ACTION=autoCreateAndGetCertificate ;;
@@ -312,6 +353,7 @@ while getopts ":CD:H:LSVacdghiklsuv-:" optchar; do
 						(( OPTIND++ ))
 						[[ -z "${SINGLEDOMAIN}" ]] && usage 1 "option --${OPTARG} needs an argument"
 						;;
+				force)		FORCE=1 ;;
 				get-cert*)	ACTION=getCertificate ;;
 				help)		usage 2 "" ;;
 				home=*)		export HOMEDIR=${OPTARG##*=}
@@ -332,11 +374,21 @@ while getopts ":CD:H:LSVacdghiklsuv-:" optchar; do
 						init 0 "${HOMEDIR}"
 						getDefaultDomainIfExists
 						;;
+				info)		ACTION=listInstalledCertificates ;;
 				install-cert*)	ACTION=installCertificates ;;
 				list-csr)	ACTION=listCSR ;;
 				list-domains)	ACTION=listDomains ;;
 				list-cert*)	ACTION=listCertificates ;;
 				list-sans)	ACTION=listSANS ;;
+				min-days-left=*)
+						MINDAYSLEFT=${OPTARG##*=}
+						_opt=${OPTARG%%=${MINDAYSLEFT}}
+						[[ -z "${MINDAYSLEFT}" ]] && usage 1 "option --${_opt} needs an argument"
+						;;
+				min-days-left)	MINDAYSLEFT=${!OPTIND}
+						(( OPTIND++ ))
+						[[ -z "${MINDAYSLEFT}" ]] && usage 1 "option --${OPTARG} needs an argument"
+						;;
 				staging)	USESTAGING=1 ;;
 				usage)		usage 1 "" ;;
 				verbose)	(( VERBOSE++ )) ;;
@@ -346,6 +398,7 @@ while getopts ":CD:H:LSVacdghiklsuv-:" optchar; do
 			esac;;
 		C)	ACTION=verifyConfig ;;
 		D)	export SINGLEDOMAIN="${OPTARG}" ;;
+		F)	FORCE=1 ;;
 		H)	HOMEDIR="${OPTARG}"
 
 			#
@@ -353,6 +406,7 @@ while getopts ":CD:H:LSVacdghiklsuv-:" optchar; do
 			init 0 "${HOMEDIR}"
 			getDefaultDomainIfExists
 			;;
+		I)	ACTION=listInstalledCertificates ;;
 		L)	ACTION=listCSR ;;
 		S)	USESTAGING=1 ;;
 		V)	ACTION=verifyCSR ;;
@@ -364,6 +418,7 @@ while getopts ":CD:H:LSVacdghiklsuv-:" optchar; do
 		i)	ACTION=installCertificates ;;
 		k)	ACTION=createKey ;;
 		l)	ACTION=listCertificates ;;
+		m)	MINDAYSLEFT=${!OPTIND} ;;
 		s)	ACTION=listSANS ;;
 		u)	usage 1 "" ;;
 		v)	(( VERBOSE++ )) ;;

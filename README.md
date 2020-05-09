@@ -1,6 +1,6 @@
 # getcerts.sh
 
-The package `getcerts.sh` is an all-in-one solution to create private keys,
+The wrapper `getcerts.sh` is an all-in-one solution to create private keys,
 generate a signing request (csr) and obtain certificates from Let's Encrypt
 for multiple domains. And, of course, subject alternative names are supported.
 
@@ -9,9 +9,9 @@ Furthermore, the script can install (new) certificates and restart the web serve
 New certificates can be requested and installed without any downtime. The only
 downtime needed, is to activate the (new) certificates.
 
-The package `getcerts.sh` is based upon the excellent work done by Daniel Roesler and Jon Lundi:
+The wrapper `getcerts.sh` is based upon the excellent work done by Daniel Roesler and Jon Lundi:
 
-[acme-tiny.py](https://github.com/diafygi/acme-tiny)<br/>
+[acme-tiny](https://github.com/diafygi/acme-tiny)<br/>
 [conv.py](https://gist.github.com/JonLundy/f25c99ee0770e19dc595)
 
 An option, `--staging`, to use Let's Encrypt's staging directory has been added
@@ -132,10 +132,11 @@ openssl rsa -in private_key.der -inform der -out keys/letsencrypt-account.key
 rm private_key.asn1 private_key.der private_key.json
 ```
 
-#### Sudo
+#### Sudo configuration
+
 If a single purpose user, e.g. `acme`, has been created, it needs a sudo entry
 to be able to install the new certificates and to restart the web server.
-Create a file in `/etc/sudoers.d`. For example `/etc/sudoers/acme`, with the
+Create a file in `/etc/sudoers.d`, for example `/etc/sudoers/acme`, with the
 following (or similar) content:
 
 ```
@@ -233,34 +234,87 @@ be configured as follows:
 </VirtualHost>
 ```
 
+#### Cron
+
+Of course, cron can be set up to run this command once per month. Put this
+in the crontab for user acme:
+
+```
+* * 1 * * getcerts.sh --auto-generate && sudo getcerts.sh --install-certificates
+```
+
 ### Usage
+
+#### Creating a key
+
+```
+getcerts.sh -k
+```
+
+This will create a private 4096 bits RSA key which is stored in `keys' directory.
+
+#### Generating a CSR
+
+```
+getcerts.sh -c
+```
+
+This will create a signing request (CSR) for all configured domains, which are stored
+in `certs` directory. The configured subject alternative names are set up in this
+signing request.
+
+### Request certificates
+
+```
+getcerts.sh -g
+```
+
+This will request a new certificate from Let's Encrypt for each configured
+domain. These are in fact a chain which will be split up into separate certificates.
+
+#### Install new certificates
+
+```
+getcerts.sh -i
+```
+
+This will save the currently installed certificates and store the newly created
+certificates into the configured system wide location. If all this was successful,
+he web server will be restarted. Due to this, it might be essential to run this step
+as `root`.
+
+#### General usage information
 
 Running `getcerts.sh --help` as a regular user shows this information:
 
 ```
 getcerts.sh: usage: getcerts.sh [-h|-u]
 or: getcerts.sh [-C]
-or: getcerts.sh [-D <tld>] [-H <home>] [-S] [-v] -L|-V|-a|-c|-d|-g|-i|-k|-l|-s]
+or: getcerts.sh [-D <tld>] [-F] [-H <home>] [-I] [-m <days>] [-S] [-v] -L|-V|-a|-c|-d|-f|-g|-i|-k|-l|-s]
 
 options:
-	-C,--config               - do some basic configuration verification
-	-D,--domain <tld>         - top level domain to use, default: example.com
-	-H,--home <home>          - home to use, default: /home/acme
-	-L,--list-csr             - list certificate signing request
-	-S,--staging              - use Let's Encrypt staging directory
-	-V,--verify-csr           - verify the certificate signing request
-	-a,--auto-generate        - automagically create a new CSR and request new certificate
-	-c,--create-csr           - create new certificate signing request
-	-d,--list-domains         - list domains
-	-g,--get-certificates     - get new certificates
-	-h,--help                 - show this information
-	-i,--install-certificates - install (new) certificates
-	-k,--create-key           - create a domain key
-	-l,--list-certificates    - list current certificates (default)
-	-s,--list-sans            - list subject alternative names
-	-u,--usage                - show some brief usage information
-	-v,--verbose              - be more verbose
-	--version                 - show version
+        -C,--config                - do some basic configuration verification
+        -D,--domain <tld>          - top level domain to use, default: edgar-matzinger.nl
+        -F,--force                 - force the request of a new certificate
+        -H,--home <home>           - home to use, default: /home/acme
+        -I,--info                  - show informatiopn about installed certificates
+        -L,--list-csr              - list certificate signing request
+        -S,--staging               - use Let's Encrypt staging directory
+        -V,--verify-csr            - verify the certificate signing request
+        -a,--auto-generate         - automagically create a new CSR and request new certificate
+        -c,--create-csr            - create new certificate signing request
+        -d,--list-domains          - list domains
+        -f,--force                 - force the request of a new certificate
+        -g,--get-certificates      - get new certificates
+        -h,--help                  - show this information
+        -i,--install-certificates  - install (new) certificates
+        -k,--create-key            - create a domain key
+        -l,--list-certificates     - list current certificates (default)
+        -m,--min-days-left <days>  - get a new certificate if validity current one has less than <days> left, default: 30
+        -s,--list-sans             - list subject alternative names
+        -u,--usage                 - show some brief usage information
+        -v,--verbose               - be more verbose
+        --version                  - show version
 
 options can be specified in any order
 ```
@@ -273,13 +327,19 @@ or: getcerts.sh [-C]
 or: getcerts.sh [-H <home>] [-i] [-v]
 
 options:
-	-C,--config               - do some basic configuration verification
-	-H,--home <home>          - home to use, default: /home/acme
-	-h,--help                 - show this information
-	-i,--install-certificates - install (new) certificates
-	-u,--usage                - show some brief usage information
-	-v,--verbose              - be more verbose
-	--version                 - show version
+        -C,--config                - do some basic configuration verification
+        -H,--home <home>           - home to use, default: /home/acme
+        -h,--help                  - show this information
+        -i,--install-certificates  - install (new) certificates
+        -u,--usage                 - show some brief usage information
+        -v,--verbose               - be more verbose
+        --version                  - show version
 
 options can be specified in any order
+```
+
+The easiest way to get new certificates from Let's Encrypt is to run:
+
+```sh
+getcerts.sh --auto-generate && sudo getcerts.sh --install-certificates
 ```

@@ -112,3 +112,8 @@ function listSANS
 		echo "${d}.${DOMAIN}"
 	done
 }
+
+[[ -z "${ACMEDIR}" ]] && {
+	echo "$(basename ${0}) can't be used standalone, exiting" 1>&2
+	exit 1
+}

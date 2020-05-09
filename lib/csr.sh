@@ -24,7 +24,7 @@ function createKey
 {
 	log "creating key"
 
-	openssl genrsa -out ${KEYDIR}/${DOMAIN}.key 4096 || usage 15 "key creation failed, exiting..."
+	openssl genrsa -out ${KEYDIR}/${DOMAIN}.key 4096 || usage 13 "key creation failed, exiting..."
 }
 
 ###
@@ -55,7 +55,7 @@ function createCSR
 			san="DNS:${s}"
 		fi
 	done
-	[[ -z "${san}" ]] && usage 13 "no subject alternative names defined, exiting"
+	[[ -z "${san}" ]] && usage 14 "no subject alternative names defined, exiting"
 
 	export SAN="${san}"
 
@@ -87,12 +87,12 @@ function listCSR
 {
 	log "listing CSR" 2
 
-	[[ ! -f ${CERTDIR}/${DOMAIN}.csr ]] && usage 16 "${CERTDIR}/${DOMAIN}.csr doesn't exist, exiting..."
+	[[ ! -f ${CERTDIR}/${DOMAIN}.csr ]] && usage 15 "${CERTDIR}/${DOMAIN}.csr doesn't exist, exiting..."
 
 	echo "Information on ${DOMAIN}.csr:"
 	{
 		openssl req -noout -subject -in ${CERTDIR}/${DOMAIN}.csr ||
-			usage 17 "${CERTDIR}/${DOMAIN}.csr couldn't be listed, exiting..."
+			usage 16 "${CERTDIR}/${DOMAIN}.csr couldn't be listed, exiting..."
 	} | sed -ne '/^[sS]ubject/{ s/^[sS]ubject=/- Subject: /; s@/O=@O=@; s@/@, @g; p; }'
 
 	if [[ ${VERBOSE} -ne 0 ]]; then
@@ -123,17 +123,17 @@ function verifyCSR
 {
 	local text='-subject'
 
-	[[ ! -f ${CERTDIR}/${DOMAIN}.csr ]] && usage 14 "${CERTDIR}/${DOMAIN}.csr doesn't exist, exiting..."
+	[[ ! -f ${CERTDIR}/${DOMAIN}.csr ]] && usage 18 "${CERTDIR}/${DOMAIN}.csr doesn't exist, exiting..."
 
 	[[ ${VERBOSE} -gt 0 ]] && text='-text'
 
 	{
 		openssl req -in ${CERTDIR}/${DOMAIN}.csr -verify -noout ${text} ||
-				usage 18 "${CERTDIR}/${DOMAIN}.csr couldn't be verified, exiting..."
+				usage 19 "${CERTDIR}/${DOMAIN}.csr couldn't be verified, exiting..."
 	} | sed -e '/^[sS]ubject/{ s/^[sS]ubject=/Subject: /; s@/O=@O=@; s@/@, @g; }'
 }
 
 [[ -z "${ACMEDIR}" ]] && {
-	echo "csr.sh can't be used standalone, exiting..." 1>&2
+	echo "$(basename ${0}) can't be used standalone, exiting..." 1>&2
 	exit 1
 }

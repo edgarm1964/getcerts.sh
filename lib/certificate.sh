@@ -20,6 +20,8 @@
 ## @global{CERTDIR,in,location where the certificates are stored}
 ## @global{DOMAIN,in,the domain to get certificates for}
 ## @global{EMAIL,in,the contact address}
+## @global{FORCE,in,force the creation of a new certificate if unequal to 0}
+## @global(MINDAYSLEFT,in,a new certificate is requested if current certificate has less than this number of days validity left}
 ## @global{USESTAGING,in,1 if Let's Encrypt's staging directory should be used\, 0 otherwise}
 ## @global{VERBOSE,in,be more verbose}
 ## @globalend
@@ -32,11 +34,20 @@ function getCertificate
 	local quiet='--quiet'
 	local commonName=''
 	local n=0
+	local days=$(daysLeft)
 
 	log "getting certificates"
 
 	[[ ${USESTAGING} -ne 0 ]] && staging='--staging'
 	[[ ${VERBOSE} -ne 0 ]] && quiet=''
+
+	[[ ${FORCE} -eq 0 && ${daysleft} -gt ${MINDAYSLEFT} ]] && {
+		usage 20 "current top level domain certificate has ${daysLeft} days validity left, not requesting a new certificate"
+	}
+
+	[[ ${FORCE} -ne 0 ]] && {
+		log "forcing the request of a new certificate" 0
+	}
 
 	python ${BINDIR}/acme-tiny.py --account-key ${ACMEKEY} ${staging} \
 		--contact ${EMAIL} ${quiet} \
@@ -74,10 +85,10 @@ function getCertificate
 
 		if [[ -n "${commonName}" ]]; then
 			mv ${certfile} ${CERTDIR}/${commonName}.crt ||
-				usage 27 "couldn't create ${DOMAIN} certificate, exiting"
+				usage 21 "couldn't create ${DOMAIN} certificate, exiting"
 		elif openssl x509 -noout -text -in ${certfile} | grep -qi 'lets'; then
 			mv ${certfile} ${CERTDIR}/lets-encrypt-x1-cross-signed-$(printf "%04d" ${n}).crt ||
-				usage 28 "could create Let's Encrypt cross signed certificate, exiting..."
+				usage 22 "could create Let's Encrypt cross signed certificate, exiting..."
 			(( n++ ))
 		fi
 	done
@@ -104,12 +115,12 @@ function listCertificates
 {
 	log "listing certificate(s)" 2
 
-	[[ ! -f ${CERTDIR}/${DOMAIN}.crt ]] && usage 19 "${CERTDIR}/${DOMAIN}.crt doesn't exist, exiting..."
+	[[ ! -f ${CERTDIR}/${DOMAIN}.crt ]] && usage 23 "${CERTDIR}/${DOMAIN}.crt doesn't exist, exiting..."
 
 	echo "Information on ${DOMAIN}.crt:"
 	{
 		openssl x509 -noout -issuer -subject -dates -in ${CERTDIR}/${DOMAIN}.crt ||
-			usage 17 "${CERTDIR}/${DOMAIN}.crt couldn't be listed, exiting..."
+			usage 24 "${CERTDIR}/${DOMAIN}.crt couldn't be listed, exiting..."
 	} | sed -ne '/^[sS]ubject/{ s@^[sS]ubject=[[:space:]]*/@- Subject: @; s@/O=@O=@; s@/@, @g; p; }' \
 		-e '/notBefore/{ s/notBefore=/- Valid from: /p; }' \
 		-e '/notAfter/{ s/notAfter=/-         to: /p;}' \
@@ -120,7 +131,58 @@ function listCertificates
 	if [[ ${VERBOSE} -ne 0 ]]; then
 		{
 			openssl x509 -noout -text -in ${CERTDIR}/${DOMAIN}.crt ||
-				usage 20 "${CERTDIR}/${DOMAIN}.crt couldn't be listed, exiting..."
+				usage 25 "${CERTDIR}/${DOMAIN}.crt couldn't be listed, exiting..."
+		} | sed -ne '/Subject Alternative Name:/{
+			s/^.*$/Defined Subject Alternative Names:/p; n;
+			s/[[:space:]][[:space:]]*DNS:\([^,]*\)[,]*/- \1\n/g;
+			s/\n$//p; }'
+	fi
+}
+
+###
+## @fn listInstalledCertificates()
+##
+## @brief list system wide installed certificates.
+##
+## @globalstart
+## @global{DOMAIN,in,the domain to get certificates for}
+## @global{SSLCERTDIR,in,systemwide location of certificates}
+## @global{VERBOSE,in,be more verbose}
+## @globalend
+##
+## @retval none
+#
+function listInstalledCertificates
+{
+	local certfile=${SSLCERTDIR}/${DOMAIN}.crt
+	local fallback=$(listSANS | head -n 1)
+	local nextcertfile=''
+
+	log "listing certificate(s)" 2
+
+	[[ ! -f ${certfile} ]] && {
+		nextcertfile=${SSLCERTDIR}/${fallback}.crt
+		log "certificate file ${certfile} doesn't exist, trying $nextcertfile}" 2
+		certfile=${nextcertfile}
+	}
+	[[ ! -f ${certfile} ]] && usage 26 "${certfile} doesn't exist, exiting..."
+
+	echo "Information on $(basename ${certfile}):"
+	{
+		openssl x509 -noout -issuer -subject -dates -in ${certfile} ||
+			usage 27 "${certfile} couldn't be listed, exiting..."
+	} | sed -ne '/^[sS]ubject/{ s@^[sS]ubject=[[:space:]]*/@- Subject: @; s@/O=@O=@; s@/@, @g; p; }' \
+		-e '/notBefore/{ s/notBefore=/- Valid from: /p; }' \
+		-e '/notAfter/{ s/notAfter=/-         to: /p;}' \
+		-e '/[Ii]ssuer/{ s@^.*CN=Fake.*$@- Purpose: unusable test/staging certificate@p;
+				 s@^.*CN=\(.*\)$@- Purpose: valid certificate from \1@p; }'
+		# -e '/CN=Fake/{ s@^.*$@- Usability: unusable test/staging certificate@p; }' \
+	echo "- days left: $(certificateDaysLeft ${certfile})"
+
+	if [[ ${VERBOSE} -ne 0 ]]; then
+		{
+			openssl x509 -noout -text -in ${certfile} ||
+				usage 28 "${certfile} couldn't be listed, exiting..."
 		} | sed -ne '/Subject Alternative Name:/{
 			s/^.*$/Defined Subject Alternative Names:/p; n;
 			s/[[:space:]][[:space:]]*DNS:\([^,]*\)[,]*/- \1\n/g;
@@ -148,11 +210,11 @@ function installCertificates
 
 	log "installing certificates"
 
-	[[ ! -f ${CERTDIR}/${DOMAIN}.crt ]] && usage 21 "certificate ${DOMAIN}.crt doesn't exit, exiting..."
+	[[ ! -f ${CERTDIR}/${DOMAIN}.crt ]] && usage 29 "certificate ${DOMAIN}.crt doesn't exit, exiting..."
 
 	log "saving current ${DOMAIN} certificate with the date code: ${TS}"
 	mv ${SSLCERTDIR}/${DOMAIN}.crt ${SSLCERTDIR}/${DOMAIN}.crt-${TS} ||
-	       	usage 22 "couldn't save current ${DOMAIN} certificate, exiting..."
+	       	usage 30 "couldn't save current ${DOMAIN} certificate, exiting..."
 
 	#
 	# and yes, 'ln -f --backup --suffix="-${TS}"' could have been used...
@@ -160,24 +222,93 @@ function installCertificates
 	log "removing Subject Alternate Name certificates"
 	for certfile in $(listSANS); do
 		rm ${SSLCERTDIR}/${certfile}.crt ||
-			usage 23 "couldn't remove current Subject Alternative Name certificate ${certfile}.crt, exiting..."
+			usage 31 "couldn't remove current Subject Alternative Name certificate ${certfile}.crt, exiting..."
 	done
 
 	log "installing ${DOMAIN} certificate"
 	cp ${CERTDIR}/${DOMAIN}.crt ${SSLCERTDIR}/${DOMAIN}.crt ||
-	       	usage 24 "couldn't create ${DOMAIN} certificate, exiting..."
+	       	usage 32 "couldn't create ${DOMAIN} certificate, exiting..."
 
 	log "creating Subject Alternate Name certificates"
 	for certfile in $(listSANS); do
 		ln ${SSLCERTDIR}/${DOMAIN}.crt ${SSLCERTDIR}/${certfile}.crt ||
-			usage 25 "couldn't create Subject Alternative Name certificate ${certfile}.crt, exiting..."
+			usage 33 "couldn't create Subject Alternative Name certificate ${certfile}.crt, exiting..."
 	done
 
 	log "restarting httpd"
-	systemctl restart httpd || usage 26 "couldn't restart httpd, exiting..."
+	systemctl restart httpd || usage 34 "couldn't restart httpd, exiting..."
+}
+
+###
+## @fn daysLeft()
+##
+## @brief give number of days the installed/current TLD certificate has left
+##
+## @globalstart
+## @global{DOMAIN,in,the domain to get certificates for}
+## @global{SSLCERTDIR,in,systemwide location of certificates}
+## @globalend
+##
+## @retval none
+#
+function daysLeft
+{
+	local notAfter=0
+	local now=$(date +%s)
+	local days=0
+	local certfile="${SSLCERTDIR}/${DOMAIN}.crt"
+	local nextcertfile=''
+	local fallback=$(listSANS | head -n 1)
+
+	# do some checks and if needed, do an educated guess
+	[[ ! -f ${certfile} ]] && {
+		nextcertfile="${SSLCERTDIR}/${fallback}.crt"
+		log "certificate file $(basename ${certfile}) doesn't exist, trying i$(basename ${nextcertfile})" 2
+		certfile=${nextcertfile}
+	}
+
+	if [[ -f ${certfile} ]]; then
+		eval $(openssl x509 -dates -noout -in ${certfile} |
+			sed -n -e 's/^\(notAfter\)=\(.*\)$/\1=$(date +%s -d "\2")/p')
+		days=$(( (${notAfter} - ${now}) / 86400))
+		[[ ${days} -lt 0 ]] && days=0
+	fi
+
+	echo ${days}
+}
+
+###
+## @fn certificateDaysLeft(string certfile)
+##
+## @brief give number of days the given certificate has left
+##
+## @param[in] certfile ${1} certificate to get information from
+##
+## @globalstart
+## @global{VERBOSE,in,be more verbose}
+## @globalend
+##
+## @retval none
+#
+#
+function certificateDaysLeft
+{
+	local certfile="${1}"
+	local days=0
+	local notAfter=0
+	local now=$(date +%s)
+
+	if [[ -f ${certfile} ]]; then
+		eval $(openssl x509 -dates -noout -in ${certfile} |
+			sed -n -e 's/^\(notAfter\)=\(.*\)$/\1=$(date +%s -d "\2")/p')
+		days=$(( (${notAfter} - ${now}) / 86400))
+		[[ ${days} -lt 0 ]] && days=0
+	fi
+
+	echo ${days}
 }
 
 [[ -z "${ACMEDIR}" ]] && {
-	echo "certificate.sh can't be used standalone, exiting" 1>&2
+	echo "$(basename ${0}) can't be used standalone, exiting" 1>&2
 	exit 1
 }
