@@ -280,7 +280,7 @@ getcerts.sh -i
 
 This will save the currently installed certificates and store the newly created
 certificates into the configured system wide location. If all this was successful,
-he web server will be restarted. Due to this, it might be essential to run this step
+the web server will be restarted. Due to this, it might be essential to run this step
 as `root`.
 
 #### General usage information
