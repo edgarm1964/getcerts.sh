@@ -227,16 +227,20 @@ function installCertificates
 
 	log "installing ${DOMAIN} certificate"
 	cp ${CERTDIR}/${DOMAIN}.crt ${SSLCERTDIR}/${DOMAIN}.crt ||
-	       	usage 32 "couldn't create ${DOMAIN} certificate, exiting..."
+	       	usage 32 "couldn't install ${DOMAIN} certificate, exiting..."
 
 	log "creating Subject Alternate Name certificates"
 	for certfile in $(listSANS); do
 		ln ${SSLCERTDIR}/${DOMAIN}.crt ${SSLCERTDIR}/${certfile}.crt ||
-			usage 33 "couldn't create Subject Alternative Name certificate ${certfile}.crt, exiting..."
+			usage 33 "couldn't install Subject Alternative Name certificate ${certfile}.crt, exiting..."
 	done
 
+	log "installing ${DOMAIN} key"
+	cp ${KEYDIR}/${DOMAIN}.crt ${SSLKEYDIR}/${DOMAIN}.crt ||
+	       	usage 34 "couldn't install ${DOMAIN} key, exiting..."
+
 	log "restarting httpd"
-	systemctl restart httpd || usage 34 "couldn't restart httpd, exiting..."
+	systemctl restart httpd || usage 35 "couldn't restart httpd, exiting..."
 }
 
 ###

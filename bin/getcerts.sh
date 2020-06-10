@@ -20,37 +20,6 @@
 ## @global{VERSION,-,version}
 ## @globalend
 ##
-## @exitcodestart
-## @exitcode{1,option --${OPTARG} needs an argument (file: bin/getcerts.sh\, line: 321\, 337\, 357)}
-## @exitcode{1,option --${_opt} needs an argument (file: bin/getcerts.sh\, line: 317\, 328\, 353)}
-## @exitcode{10,${CONFIGDIR}/domain.txt doesn't exist (file: lib/misc.sh\, line: 43)}
-## @exitcode{11,please create ${CONFIGDIR}/domain.txt (file: lib/misc.sh\, line: 88)}
-## @exitcode{12,${CONFIGDIR}/${DOMAIN}-san.txt doesn't exist (file: lib/misc.sh\, line: 110)}
-## @exitcode{13,key creation failed (file: lib/csr.sh\, line: 27)}
-## @exitcode{14,no subject alternative names defined (file: lib/csr.sh\, line: 58)}
-## @exitcode{15,${CERTDIR}/${DOMAIN}.csr doesn't exist (file: lib/csr.sh\, line: 90)}
-## @exitcode{16,${CERTDIR}/${DOMAIN}.csr couldn't be listed (file: lib/csr.sh\, line: 95)}
-## @exitcode{17,${CERTDIR}/${DOMAIN}.csr couldn't be listed (file: lib/csr.sh\, line: 101)}
-## @exitcode{18,${CERTDIR}/${DOMAIN}.csr doesn't exist (file: lib/csr.sh\, line: 126)}
-## @exitcode{19,${CERTDIR}/${DOMAIN}.csr couldn't be verified (file: lib/csr.sh\, line: 132)}
-## @exitcode{20,current top level domain certificate has ${daysLeft} days validity left\, not requesting a new certificate (file: lib/certificate.sh\, line: 45)}
-## @exitcode{21,couldn't create ${DOMAIN} certificate (file: lib/certificate.sh\, line: 88)}
-## @exitcode{22,could create Let's Encrypt cross signed certificate (file: lib/certificate.sh\, line: 91)}
-## @exitcode{23,${CERTDIR}/${DOMAIN}.crt doesn't exist (file: lib/certificate.sh\, line: 118)}
-## @exitcode{24,${CERTDIR}/${DOMAIN}.crt couldn't be listed (file: lib/certificate.sh\, line: 123)}
-## @exitcode{25,${CERTDIR}/${DOMAIN}.crt couldn't be listed (file: lib/certificate.sh\, line: 134)}
-## @exitcode{26,${certfile} doesn't exist (file: lib/certificate.sh\, line: 168)}
-## @exitcode{27,${certfile} couldn't be listed (file: lib/certificate.sh\, line: 173)}
-## @exitcode{28,${certfile} couldn't be listed (file: lib/certificate.sh\, line: 185)}
-## @exitcode{29,certificate ${DOMAIN}.crt doesn't exit (file: lib/certificate.sh\, line: 213)}
-## @exitcode{30,configuration verification was unsuccessful\, run ${PROGNAME} -C|--config for more information (file: bin/getcerts.sh\, line: 84)}
-## @exitcode{30,couldn't save current ${DOMAIN} certificate (file: lib/certificate.sh\, line: 217)}
-## @exitcode{31,couldn't remove current Subject Alternative Name certificate ${certfile}.crt (file: lib/certificate.sh\, line: 225)}
-## @exitcode{32,couldn't create ${DOMAIN} certificate (file: lib/certificate.sh\, line: 230)}
-## @exitcode{33,couldn't create Subject Alternative Name certificate ${certfile}.crt (file: lib/certificate.sh\, line: 235)}
-## @exitcode{34,couldn't restart httpd (file: lib/certificate.sh\, line: 239)}
-## @exitcodeend
-##
 #
 
 PROGNAME=${0##*/}
@@ -82,6 +51,7 @@ FORCE=0
 ## @global{MYID,out,the UID of the user running this script}
 ## @global{PATH,out,the $PATH variable}
 ## @global{SSLCERTDIR,out,systemwide location of certificates}
+## @global{SSLKEYDIR,out,systemwide location of SSL keys}
 ## @globalend
 ##
 ## @retval none
@@ -104,6 +74,7 @@ function init
 	export ACMEKEY=${ACMEHOME}/keys/letsencrypt-account.key
 	export LOGDIR=${ACMEHOME}/log
 	export SSLCERTDIR=/etc/pki/tls/certs
+	export SSLKEYDIR=/etc/pki/tls/private
 
 	# where to put the challenge
 	export ACMEDIR=/var/www/acme/.well-known/acme-challenge/
@@ -114,7 +85,7 @@ function init
 	# do some basic configuration checks
 	[[ ${doConfigVerify} -eq 1 ]] && {
 		verifyConfig "init" ||
-	       		usage 30 "configuration verification was unsuccessful, run ${PROGNAME} -C|--config for more information"
+	       		usage 3 "configuration verification was unsuccessful, run ${PROGNAME} -C|--config for more information"
 	}
 }
 
@@ -456,3 +427,40 @@ done
 #
 # all done
 exit 0
+
+# All defined exitcodes
+##
+## @exitcodestart
+## @exitcode{1,option --${OPTARG} needs an argument (file: bin/getcerts.sh\, line: 325\, 341\, 361\, 396)}
+## @exitcode{1,option --${_opt} needs an argument (file: bin/getcerts.sh\, line: 321\, 332\, 357)}
+## @exitcode{2,<show brief usage information> (file: bin/getcerts.sh\, line: 329\, 388)}
+## @exitcode{3,configuration verification was unsuccessful\, run ${PROGNAME} -C|--config for more information (file: bin/getcerts.sh\, line: 88)}
+## @exitcode{10,${CONFIGDIR}/domain.txt doesn't exist (file: lib/misc.sh\, line: 43)}
+## @exitcode{11,please create ${CONFIGDIR}/domain.txt (file: lib/misc.sh\, line: 88)}
+## @exitcode{12,${CONFIGDIR}/${DOMAIN}-san.txt doesn't exist (file: lib/misc.sh\, line: 110)}
+## @exitcode{13,key creation failed (file: lib/csr.sh\, line: 27)}
+## @exitcode{14,no subject alternative names defined (file: lib/csr.sh\, line: 58)}
+## @exitcode{15,${CERTDIR}/${DOMAIN}.csr doesn't exist (file: lib/csr.sh\, line: 90)}
+## @exitcode{16,${CERTDIR}/${DOMAIN}.csr couldn't be listed (file: lib/csr.sh\, line: 95)}
+## @exitcode{17,${CERTDIR}/${DOMAIN}.csr couldn't be listed (file: lib/csr.sh\, line: 101)}
+## @exitcode{18,${CERTDIR}/${DOMAIN}.csr doesn't exist (file: lib/csr.sh\, line: 126)}
+## @exitcode{19,${CERTDIR}/${DOMAIN}.csr couldn't be verified (file: lib/csr.sh\, line: 132)}
+## @exitcode{20,current top level domain certificate has ${daysLeft} days validity left\, not requesting a new certificate (file: lib/certificate.sh\, line: 45)}
+## @exitcode{21,couldn't create ${DOMAIN} certificate (file: lib/certificate.sh\, line: 88)}
+## @exitcode{22,could create Let's Encrypt cross signed certificate (file: lib/certificate.sh\, line: 91)}
+## @exitcode{23,${CERTDIR}/${DOMAIN}.crt doesn't exist (file: lib/certificate.sh\, line: 118)}
+## @exitcode{24,${CERTDIR}/${DOMAIN}.crt couldn't be listed (file: lib/certificate.sh\, line: 123)}
+## @exitcode{25,${CERTDIR}/${DOMAIN}.crt couldn't be listed (file: lib/certificate.sh\, line: 134)}
+## @exitcode{26,${certfile} doesn't exist (file: lib/certificate.sh\, line: 168)}
+## @exitcode{27,${certfile} couldn't be listed (file: lib/certificate.sh\, line: 173)}
+## @exitcode{28,${certfile} couldn't be listed (file: lib/certificate.sh\, line: 185)}
+## @exitcode{29,certificate ${DOMAIN}.crt doesn't exit (file: lib/certificate.sh\, line: 213)}
+## @exitcode{30,couldn't save current ${DOMAIN} certificate (file: lib/certificate.sh\, line: 217)}
+## @exitcode{31,couldn't remove current Subject Alternative Name certificate ${certfile}.crt (file: lib/certificate.sh\, line: 225)}
+## @exitcode{32,couldn't create ${DOMAIN} certificate (file: lib/certificate.sh\, line: 230)}
+## @exitcode{33,couldn't create Subject Alternative Name certificate ${certfile}.crt (file: lib/certificate.sh\, line: 235)}
+## @exitcode{34,couldn't install ${DOMAIN} key (file: lib/certificate.sh\, line: 240)}
+## @exitcode{35,couldn't restart httpd (file: lib/certificate.sh\, line: 243)}
+## @exitcodeend
+#
+#
